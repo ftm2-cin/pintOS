@@ -24,6 +24,10 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+/* (NOVO) Lista de processos no estado de THREAD_BLOCKED, ou seja, 
+processos que estão bloqueados e não podem ser executados. */
+static struct list blocked_list;
+
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
@@ -92,6 +96,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&blocked_list);  // (NOVO) Inicializa a lista de processos bloqueados.
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -213,6 +218,7 @@ thread_create (const char *name, int priority,
 void
 thread_block (void) 
 {
+  struct thread *cur = thread_current ();
   ASSERT (!intr_context ());
   ASSERT (intr_get_level () == INTR_OFF);
 
@@ -577,6 +583,22 @@ allocate_tid (void)
   lock_release (&tid_lock);
 
   return tid;
+}
+void
+thread_sleep (int64_t ticks)// (NOVO) Função que faz a thread dormir por um determinado tempo.
+{
+  struct thread *cur = thread_current (); // Pega a thread atual.
+  enum intr_level old_level;  // Variável para armazenar o nível de interrupção.
+
+  ASSERT (!intr_context ()); // Verifica se não está em contexto de interrupção.
+
+  old_level = intr_disable (); // Desabilita as interrupções.
+  if(cur != idle_thread){   // Verifica se a thread atual é diferente da idle_thread.
+    cur->wakeup_tick = ticks; // Atribui o valor de ticks para o atributo wakeup_tick.
+    list_push_back (&blocked_list, &cur->elem); // Adiciona a thread na lista de bloqueados.
+    thread_block (); // Bloqueia a thread e chama a proxima em READY. 
+    intr_set_level (old_level); // Restaura o nível de interrupção.
+  }
 }
 
 /* Offset of `stack' member within `struct thread'.
