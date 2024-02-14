@@ -595,7 +595,7 @@ ordenador (struct list_elem *a, struct list_elem *b, void *aux)
   struct thread *thread_b = list_entry(b, struct thread, elem);
   
   // Retorna verdadeiro se a prioridade da thread a for menor que a prioridade da thread b.
-  return thread_a->priority < thread_b->priority; 
+  return thread_a->wakeup_tick < thread_b->wakeup_tick; 
 }
 
 void
@@ -630,12 +630,13 @@ thread_wakeup () // (NOVO) Função que acorda as threads que estão dormindo.
   enum intr_level old_level; // Cria uma variável para armazenar o nível de interrupção.
   
   // Percorre a lista de bloqueados.
-  for(cur = list_begin(&blocked_list); cur != list_end(&blocked_list); cur = list_next(cur) ){ 
+  for(cur = list_begin(&blocked_list); cur != list_end(&blocked_list); ){ 
     t = list_entry(cur, struct thread, elem); // Pega a thread da lista.
     // Verifica se o valor de wakeup_tick é maior que o valor de timer_ticks. 
     if(t->wakeup_tick > timer_ticks()) break; 
     old_level = intr_disable(); // Desabilita as interrupções.
-    list_remove(cur);
+    cur = list_next(cur); // Pega o próximo elemento da lista.
+    list_remove(list_prev(cur)); // Remove o elemento da lista.
     thread_unblock(t); // Desbloqueia a thread.
     intr_set_level (old_level); // Restaura o nível de interrupção.
   }
