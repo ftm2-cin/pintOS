@@ -584,9 +584,26 @@ allocate_tid (void)
 
   return tid;
 }
+
+
+// (NOVO) Função que ordena a lista de acordo com a prioridade.
+static bool
+ordenador (struct list_elem *a, struct list_elem *b, void *aux) 
+{
+  // Pega a thread a partir do elemento da lista.
+  struct thread *thread_a = list_entry(a, struct thread, elem); 
+  struct thread *thread_b = list_entry(b, struct thread, elem);
+  
+  // Retorna verdadeiro se a prioridade da thread a for menor que a prioridade da thread b.
+  return thread_a->wakeup_tick < thread_b->wakeup_tick; 
+}
+
 void
 thread_sleep (int64_t ticks)// (NOVO) Função que faz a thread dormir por um determinado tempo.
 {
+
+  if(ticks <= 0) return; // Verifica se o valor de ticks é menor ou igual a zero.
+
   struct thread *cur = thread_current (); // Pega a thread atual.
   enum intr_level old_level;  // Variável para armazenar o nível de interrupção.
 
@@ -595,11 +612,37 @@ thread_sleep (int64_t ticks)// (NOVO) Função que faz a thread dormir por um de
   old_level = intr_disable (); // Desabilita as interrupções.
   if(cur != idle_thread){   // Verifica se a thread atual é diferente da idle_thread.
     cur->wakeup_tick = ticks; // Atribui o valor de ticks para o atributo wakeup_tick.
-    list_push_back (&blocked_list, &cur->elem); // Adiciona a thread na lista de bloqueados.
+    list_insert_ordered(&blocked_list, &cur->elem, ordenador, NULL); // Insere a thread 
+                                                                    //na lista de bloqueados.
     thread_block (); // Bloqueia a thread e chama a proxima em READY. 
     intr_set_level (old_level); // Restaura o nível de interrupção.
   }
 }
+
+void
+thread_wakeup () // (NOVO) Função que acorda as threads que estão dormindo.
+{
+  struct list_elem *cur; // Cria um ponteiro de elemento de lista.
+  struct thread *t; // Cria um ponteiro de thread.
+  
+  if(list_empty(&blocked_list)) return; // Verifica se a lista de bloqueados está vazia.
+
+  enum intr_level old_level; // Cria uma variável para armazenar o nível de interrupção.
+  
+  // Percorre a lista de bloqueados.
+  for(cur = list_begin(&blocked_list); cur != list_end(&blocked_list); ){ 
+    t = list_entry(cur, struct thread, elem); // Pega a thread da lista.
+    // Verifica se o valor de wakeup_tick é maior que o valor de timer_ticks. 
+    if(t->wakeup_tick > timer_ticks()) break; 
+    old_level = intr_disable(); // Desabilita as interrupções.
+    cur = list_next(cur); // Pega o próximo elemento da lista.
+    list_remove(list_prev(cur)); // Remove o elemento da lista.
+    thread_unblock(t); // Desbloqueia a thread.
+    intr_set_level (old_level); // Restaura o nível de interrupção.
+  }
+ 
+}
+
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
