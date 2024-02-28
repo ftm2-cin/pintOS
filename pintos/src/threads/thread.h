@@ -141,6 +141,7 @@ int thread_get_load_avg (void);
 
 void thread_sleep(int64_t ticks); /* (NOVO) */
 void thread_wakeup(); /* (NOVO) */
-static bool compare_wakeup_ticks(const struct list_elem *a, const struct list_elem *b, void *aux); /* (NOVO) */
+bool block_ordenator (struct list_elem *a, struct list_elem *b, void *aux);  /* (NOVO) */
+bool unblock_ordenator (struct list_elem *a, struct list_elem *b, void *aux)  /* (NOVO) */;
 
 #endif /* threads/thread.h */

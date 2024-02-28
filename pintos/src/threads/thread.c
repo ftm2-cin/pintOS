@@ -205,6 +205,7 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
+  thread_yield(); // (NOVO) Chama a função thread_yield para verificar se a thread criada tem prioridade maior que a thread atual.
 
   return tid;
 }
@@ -224,28 +225,6 @@ thread_block (void)
 
   thread_current ()->status = THREAD_BLOCKED;
   schedule ();
-}
-
-/* Transitions a blocked thread T to the ready-to-run state.
-   This is an error if T is not blocked.  (Use thread_yield() to
-   make the running thread ready.)
-
-   This function does not preempt the running thread.  This can
-   be important: if the caller had disabled interrupts itself,
-   it may expect that it can atomically unblock a thread and
-   update other data. */
-void
-thread_unblock (struct thread *t) 
-{
-  enum intr_level old_level;
-
-  ASSERT (is_thread (t));
-
-  old_level = intr_disable ();
-  ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
-  t->status = THREAD_READY;
-  intr_set_level (old_level);
 }
 
 /* Returns the name of the running thread. */
@@ -314,7 +293,8 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    // (NOVO) Insere a thread na lista de prontos.
+    list_insert_ordered (&ready_list, &cur->elem, unblock_ordenator, NULL); 
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -586,9 +566,9 @@ allocate_tid (void)
 }
 
 
-// (NOVO) Função que ordena a lista de acordo com a prioridade.
-static bool
-ordenador (struct list_elem *a, struct list_elem *b, void *aux) 
+// (NOVO) Função que ordena a lista de acordo com o tempo para acordar.
+bool
+block_ordenator (struct list_elem *a, struct list_elem *b, void *aux) 
 {
   // Pega a thread a partir do elemento da lista.
   struct thread *thread_a = list_entry(a, struct thread, elem); 
@@ -596,6 +576,40 @@ ordenador (struct list_elem *a, struct list_elem *b, void *aux)
   
   // Retorna verdadeiro se a prioridade da thread a for menor que a prioridade da thread b.
   return thread_a->wakeup_tick < thread_b->wakeup_tick; 
+}
+
+// (NOVO) Função que ordena a lista de acordo com a prioridade.
+bool
+unblock_ordenator (struct list_elem *a, struct list_elem *b, void *aux) 
+{
+  // Pega a thread a partir do elemento da lista.
+  struct thread *thread_a = list_entry(a, struct thread, elem); 
+  struct thread *thread_b = list_entry(b, struct thread, elem);
+  
+  // Retorna verdadeiro se a prioridade da thread a for menor que a prioridade da thread b.
+  return thread_a->priority < thread_b->priority; 
+}
+
+/* Transitions a blocked thread T to the ready-to-run state.
+   This is an error if T is not blocked.  (Use thread_yield() to
+   make the running thread ready.)
+
+   This function does not preempt the running thread.  This can
+   be important: if the caller had disabled interrupts itself,
+   it may expect that it can atomically unblock a thread and
+   update other data. */
+void
+thread_unblock (struct thread *t) 
+{
+  enum intr_level old_level;
+
+  ASSERT (is_thread (t));
+
+  old_level = intr_disable ();
+  ASSERT (t->status == THREAD_BLOCKED);
+  list_insert_ordered (&ready_list, &t->elem, unblock_ordenator, NULL); // (NOVO) Insere a thread na lista de prontos.
+  t->status = THREAD_READY;
+  intr_set_level (old_level);
 }
 
 void
@@ -612,7 +626,7 @@ thread_sleep (int64_t ticks)// (NOVO) Função que faz a thread dormir por um de
   old_level = intr_disable (); // Desabilita as interrupções.
   if(cur != idle_thread){   // Verifica se a thread atual é diferente da idle_thread.
     cur->wakeup_tick = ticks; // Atribui o valor de ticks para o atributo wakeup_tick.
-    list_insert_ordered(&blocked_list, &cur->elem, ordenador, NULL); // Insere a thread 
+    list_insert_ordered(&blocked_list, &cur->elem, block_ordenator, NULL); // Insere a thread 
                                                                     //na lista de bloqueados.
     thread_block (); // Bloqueia a thread e chama a proxima em READY. 
     intr_set_level (old_level); // Restaura o nível de interrupção.
