@@ -16,7 +16,7 @@
 #endif
 
 /* Random value for struct thread's `magic' member.
-   Used to detect stack overflow. See the big comment at the top
+   Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
@@ -476,7 +476,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *)t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-  
+
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
@@ -633,13 +633,6 @@ thread_sleep (int64_t ticks) // (NOVO) Função que faz a thread dormir por um
       !intr_context ()); // Verifica se não está em contexto de interrupção.
 
   old_level = intr_disable (); // Desabilita as interrupções.
-  if(cur != idle_thread){   // Verifica se a thread atual é diferente da idle_thread.
-    cur->wakeup_tick = ticks; // Atribui o valor de ticks para o atributo wakeup_tick.
-    list_insert_ordered(&blocked_list, &cur->elem, block_ordenator, NULL); // Insere a thread 
-                                                                    //na lista de bloqueados.
-    thread_block (); // Bloqueia a thread e chama a proxima em READY. 
-    intr_set_level (old_level); // Restaura o nível de interrupção.
-  }
   if (cur != idle_thread)
     { // Verifica se a thread atual é diferente da idle_thread.
       cur->wakeup_tick
