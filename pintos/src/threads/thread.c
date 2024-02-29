@@ -57,6 +57,7 @@ static long long user_ticks;   /* # of timer ticks in user programs. */
 
 /* Scheduling. */
 #define TIME_SLICE 4          /* # of timer ticks to give each thread. */
+#define TIME_FREQ 100          /* # of timer ticks per second. */
 static unsigned thread_ticks; /* # of timer ticks since last yield. */
 
 /* If false (default), use round-robin scheduler.
@@ -143,6 +144,39 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
+
+  if(thread_mlfqs) // (NOVO) Verifica se o escalonamento é do tipo MLFQS.
+  {
+    if(t != idle_thread) // (NOVO) Verifica se a thread atual é diferente da idle_thread.
+    {
+      t->recent_cpu = FLOAT_ADD_MIX(t->recent_cpu, 1); // (NOVO) Incrementa o valor de recent_cpu.
+    }
+    if(timer_ticks() % TIME_FREQ == 0) // (NOVO) Ocorre quando se passa um segundo.
+    {
+      int ready_threads = list_size(&ready_list); // (NOVO) Pega o tamanho da lista de prontos.
+      if(t != idle_thread) // (NOVO) Verifica se a thread atual é diferente da idle_thread.
+      {
+        ready_threads++; // (NOVO) Incrementa o valor de ready_threads.
+      } 
+      load_avg = REAL_ADD(REAL_DIV_INT(REAL_MULT_INT(load_avg, 59), 60), REAL_DIV_INT(INT_TO_REAL(ready_threads), 60));
+      load_avg = FLOAT_ROUND(FLOAT_ADD(FLOAT_DIV_MIX(FLOAT_MULT_MIX(load_avg, 59), 60),FLOAT_DIV_MIX(ready_threads,60))); // (NOVO) Calcula a média de carga do sistema.
+      struct list_elem *e; // (NOVO) Cria um ponteiro de elemento de lista.
+      for(e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) // (NOVO) Percorre a lista de todos os processos.
+      {
+        struct thread *t = list_entry(e, struct thread, allelem); // (NOVO) Pega a thread da lista.
+        if(t != idle_thread) // (NOVO) Verifica se a thread atual é diferente da idle_thread.
+        {
+          int64_t priority = PRI_MAX - FLOAT_ROUND(t->recent_cpu / 4) - t->nice * 2; // (NOVO) Calcula a prioridade da thread.
+          priority = priority_limit_check(priority); // (NOVO) Verifica se a prioridade está dentro do limite.
+          t->priority = priority; // (NOVO) Atribui o valor para o atributo priority.
+        }
+      }
+    }
+    if(timer_ticks() % 4 == 0) // (NOVO) Verifica se o valor de timer_ticks é múltiplo de 4.
+    {
+      thread_yield(); // (NOVO) Chama a função thread_yield para verificar se a thread atual tem prioridade maior que a thread criada.
+    }
+  }
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -352,8 +386,9 @@ void
 thread_set_priority (int new_priority)
 {
   struct thread *t = thread_current(); // (NOVO) Pega a thread atual.
+  struct thread *e = list_begin(&ready_list); // (NOVO) Pega a primeira thread da lista de prontos.
   t->priority = new_priority;         // (NOVO) Atribui o valor para o atributo priority.
-  if(t->priority < ready_list.head->priority) 
+  if(t->priority < e -> priority) 
   thread_yield();    // (NOVO) Chama a função thread_yield para verificar se a
                      // thread atual tem prioridade maior que a thread criada.
 }
