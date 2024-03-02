@@ -90,8 +90,8 @@ struct thread
   int priority;              /* Priority. */
   struct list_elem allelem;  /* List element for all threads list. */
   int64_t wakeup_tick;       /* (NOVO) tick para acordar uma thread bloqueada. */
-  int64_t nice;              /* (NOVO) grau de quao nicer eh uma thread*/
-  int64_t recent_cpu;        /* (NOVO) tempo de cpu recente */
+  int nice;              /* (NOVO) grau de quao nicer eh uma thread*/
+  int recent_cpu;        /* (NOVO) tempo de cpu recente */
 
     /* Shared between thread.c and synch.c. */
   struct list_elem elem; /* List element. */
@@ -145,5 +145,8 @@ void thread_sleep (int64_t ticks);                                            /*
 void thread_wakeup (void);                                                    /* (NOVO) */
 bool block_ordenator (struct list_elem *a, struct list_elem *b, void *aux);   /* (NOVO) */
 bool unblock_ordenator (struct list_elem *a, struct list_elem *b, void *aux); /* (NOVO) */
-int64_t priority_limit_check(int64_t priority);                               /* (NOVO) */
+int priority_limit_check(int priority);                               /* (NOVO) */
+void update_priority_all(void);                                               /* (NOVO) */
+void update_recent_all(void);                                                 /* (NOVO) */
+void update_load_avg(void);                                                   /* (NOVO) */
 #endif /* threads/thread.h */

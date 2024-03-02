@@ -65,7 +65,7 @@ static unsigned thread_ticks; /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
-int64_t load_avg; // (NOVO) Variável que armazena a média de carga do sistema.
+int load_avg; // (NOVO) Variável que armazena a média de carga do sistema.
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -153,47 +153,20 @@ thread_tick (void)
     }
     if(timer_ticks() % TIME_FREQ == 0) // (NOVO) Ocorre quando se passa um segundo.
     {
-      
-      int ready_threads = list_size(&ready_list); // (NOVO) Pega o tamanho da lista de prontos.
-      
-      if(t != idle_thread) // (NOVO) Verifica se a thread atual é diferente da idle_thread.
-        ready_threads++; // (NOVO) Incrementa o valor de ready_threads.
-      
-      load_avg = FLOAT_ADD(FLOAT_DIV(FLOAT_MULT(FLOAT_DIV_MIX(59, 60), load_avg), 60), FLOAT_DIV_MIX(ready_threads, 60)); // (NOVO) Calcula a média de carga do sistema.      
-      
-      struct list_elem *l; // (NOVO) Cria um ponteiro de elemento de lista.
-      
-      for(l = list_begin(&all_list); l != list_end(&all_list); l = list_next(l)) // (NOVO) Percorre a lista de todas as threads.
-      {
-       struct thread *cur = list_entry(l, struct thread, allelem); // (NOVO) Pega a thread da lista.
-       int64_t new_load_avg = FLOAT_MULT_MIX(load_avg, 2); // (NOVO) Calcula a nova média de carga do sistema.   
-       cur->recent_cpu = FLOAT_ADD_MIX(FLOAT_MULT(FLOAT_DIV(new_load_avg, FLOAT_ADD_MIX(new_load_avg, 1)), cur->recent_cpu), cur->nice); // (NOVO) Calcula o valor de recent_cpu.
-      }
-    
+      update_load_avg(); 
+      update_recent_all();
     }
     
     if(timer_ticks() % 4 == 0) // (NOVO) Verifica se o valor de timer_ticks é múltiplo de 4.
     {
-      struct list_elem *l;       // (NOVO) Cria um ponteiro de elemento de lista.
-      enum intr_level old_level; // (NOVO) Cria uma variável para armazenar o nível de interrupção.
-
-      old_level = intr_disable ();
-
-      for(l = list_begin (&all_list); l != list_end (&all_list); l = list_next (l)){
-        struct thread *t = list_entry(l, struct thread, allelem); // (NOVO) Pega a thread da lista.
-        int priority = PRI_MAX - FLOAT_ROUND(t->recent_cpu / 4) - t->nice * 2; // (NOVO) Calcula a prioridade da thread.
-        t->priority = priority_limit_check(priority); // (NOVO) Verifica se a prioridade está dentro do limite.
-       }
-        intr_set_level (old_level);
-
-      intr_yield_on_return();
+      update_priority_all();
     }
   }
-  else{
+  
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
-  }
+  
 }
 
 /* Prints thread statistics. */
@@ -423,7 +396,7 @@ thread_set_nice (int nice UNUSED)
   struct thread *t = thread_current(); // (NOVO) Pega a thread atual.
   t->nice = nice;                     // (NOVO) Atribui o valor de nice para o atributo nice.
   // (NOVO) Calcula a prioridade da thread.
-  int64_t priority = PRI_MAX - FLOAT_ROUND(t->recent_cpu / 4) - t->nice * 2;
+  int priority = PRI_MAX - FLOAT_TO_INT_NEAR(t->recent_cpu / 4) - t->nice * 2;
   priority = priority_limit_check(priority); // (NOVO) Verifica se a prioridade está dentro do limite.
   thread_set_priority(priority); // (NOVO) Chama a função para definir a prioridade da thread.
 }
@@ -440,7 +413,7 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void)
 {
-  return FLOAT_ROUND(load_avg *100); //retorna 100 vezes o valor de load average atual
+  return FLOAT_TO_INT_NEAR(load_avg *100); //retorna 100 vezes o valor de load average atual
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -448,7 +421,7 @@ int
 thread_get_recent_cpu (void)
 {
    struct thread *t = thread_current();
-   return FLOAT_ROUND(t->recent_cpu * 100); //retorna 100 vezes o valor de recent_cpu da thread atual
+   return FLOAT_TO_INT_NEAR(t->recent_cpu * 100); //retorna 100 vezes o valor de recent_cpu da thread atual
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -538,6 +511,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *)t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  t->nice = 0; // (NOVO) Inicializa o atributo nice da thread.
+  t->recent_cpu = 0; // (NOVO) Inicializa o atributo recent_cpu da thread.
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -734,8 +709,8 @@ thread_wakeup () // (NOVO) Função que acorda as threads que estão dormindo.
     }
 }
 
-int64_t
-priority_limit_check(int64_t priority)
+int
+priority_limit_check(int priority)
 // (NOVO) Função que verifica se a prioridade está dentro do limite.
 { 
   if(priority > PRI_MAX){
@@ -745,6 +720,40 @@ priority_limit_check(int64_t priority)
     priority = PRI_MIN;
   }
   return priority;
+}
+
+void
+update_priority_all(void){
+  struct list_elem *l;       // (NOVO) Cria um ponteiro de elemento de lista.
+
+  for(l = list_begin (&all_list); l != list_end (&all_list); l = list_next (l)){
+    struct thread *t = list_entry(l, struct thread, allelem); // (NOVO) Pega a thread da lista.
+    int priority = PRI_MAX - FLOAT_TO_INT_NEAR(t->recent_cpu / 4) - t->nice * 2; // (NOVO) Calcula a prioridade da thread.
+    t->priority = priority_limit_check(priority); // (NOVO) Verifica se a prioridade está dentro do limite.
+  }
+}
+
+void
+update_recent_all(void){
+   struct list_elem *l; // (NOVO) Cria um ponteiro de elemento de lista.
+      
+      for(l = list_begin(&all_list); l != list_end(&all_list); l = list_next(l)) // (NOVO) Percorre a lista de todas as threads.
+      {
+       struct thread *cur = list_entry(l, struct thread, allelem); // (NOVO) Pega a thread da lista.
+       cur->priority = PRI_MAX - FLOAT_TO_INT_NEAR(cur->recent_cpu / 4) - cur->nice * 2; // (NOVO) Calcula a prioridade da thread.
+       cur->priority = priority_limit_check(cur->priority); // (NOVO) Verifica se a prioridade está dentro do limite.
+      }
+}
+
+void
+update_load_avg(void){
+    int ready_threads = list_size(&ready_list); // (NOVO) Pega o tamanho da lista de prontos.
+    
+    if(thread_current() != idle_thread) // (NOVO) Verifica se a thread atual é diferente da idle_thread.
+      ready_threads++; // (NOVO) Incrementa o valor de ready_threads.
+    // FLOAT_TO_INT_NEAR(59/60)*load_avg + FL
+    load_avg = FLOAT_TO_INT_ZERO(FLOAT_ADD_MIX(6,4.3)); // (NOVO) Calcula a média de carga do sistema.     
+    msg("ready_threads: %d, load_avg: %d", ready_threads, load_avg);
 }
 
 /* Offset of `stack' member within `struct thread'.
