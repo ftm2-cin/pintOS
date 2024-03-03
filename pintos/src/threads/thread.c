@@ -386,20 +386,15 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED)
 {
-  
     struct thread *t = thread_current (); // (NOVO) Pega a thread atual.
     
     t->nice = nice; //  Atribui o valor de nice para o atributo nice.
   
-    if (t != idle_thread){
-        int priority = FLOAT_TO_INT_ZERO(FLOAT_ADD(FLOAT_DIV_MIX(t->recent_cpu,-4) ,INT_TO_FLOAT(PRI_MAX - (t->nice* 2))));
-        priority = priority_limit_check (priority); // Verifica se a prioridade está dentro do limite.
-        t->priority = priority_limit_check(priority); // Atribui o valor de priority para o atributo priority.
-    }
+    int priority = FLOAT_TO_INT_ZERO(FLOAT_ADD(FLOAT_DIV_MIX(t->recent_cpu,-4) ,INT_TO_FLOAT(PRI_MAX - (t->nice* 2))));
+    priority = priority_limit_check (priority); // Verifica se a prioridade está dentro do limite.
+    t->priority = priority_limit_check(priority); // Atribui o valor de priority para o atributo priority.
 
-    if(t != idle_thread){ // Verifica se a thread atual é diferente da idle_thread.
-        priority_yield(); 
-    }
+    priority_yield(); 
    
 }
 
