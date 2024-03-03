@@ -160,14 +160,10 @@ thread_tick (void)
       if (timer_ticks () % 4 == 0) // (NOVO) Verifica se o valor de timer_ticks é múltiplo de 4.
         {
           update_priority_all (); 
-          intr_yield_on_return ();
         }
     }
-else{
-  /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
-}
 }
 
 /* Prints thread statistics. */
@@ -423,7 +419,7 @@ int
 thread_get_load_avg (void)
 {
   
-    int load_avg_value = FLOAT_TO_INT__ZERO(FLOAT_MULT_MIX(load_avg, 100)); // (NOVO) Pega o valor de load average atual. 
+    int load_avg_value = FLOAT_TO_INT_ZERO(FLOAT_MULT_MIX(load_avg, 100)); // (NOVO) Pega o valor de load average atual. 
    
     return load_avg_value; // (NOVO) retorna 100 vezes o valor de load average atual
 
