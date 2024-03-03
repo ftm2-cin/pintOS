@@ -754,7 +754,6 @@ update_load_avg (void)
     ready_threads++; // (NOVO) Incrementa o valor de ready_threads.
   
     load_avg = (FLOAT_ADD(FLOAT_MULT(FLOAT_DIV_MIX(INT_TO_FLOAT(59), 60), load_avg), FLOAT_MULT_MIX(FLOAT_DIV_MIX(INT_TO_FLOAT(1), 60), ready_threads)));
-    msg("load_avg: %d", load_avg);
   
 }
 
