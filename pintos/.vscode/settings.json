@@ -1,7 +1,7 @@
 {
-    "editor.formatOnSave": true,
     "C_Cpp.formatting": "clangFormat",
     "files.associations": {
-        "thread.h": "c"
+        "thread.h": "c",
+        "string.h": "c"
     },
 }
