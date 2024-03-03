@@ -160,14 +160,10 @@ thread_tick (void)
       if (timer_ticks () % 4 == 0) // (NOVO) Verifica se o valor de timer_ticks é múltiplo de 4.
         {
           update_priority_all (); 
-          intr_yield_on_return ();
         }
     }
-else{
-  /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
-}
 }
 
 /* Prints thread statistics. */
@@ -390,20 +386,15 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED)
 {
-  
     struct thread *t = thread_current (); // (NOVO) Pega a thread atual.
     
     t->nice = nice; //  Atribui o valor de nice para o atributo nice.
   
-    if (t != idle_thread){
-        int priority = FLOAT_TO_INT_ZERO(FLOAT_ADD(FLOAT_DIV_MIX(t->recent_cpu,-4) ,INT_TO_FLOAT(PRI_MAX - (t->nice* 2))));
-        priority = priority_limit_check (priority); // Verifica se a prioridade está dentro do limite.
-        t->priority = priority_limit_check(priority); // Atribui o valor de priority para o atributo priority.
-    }
+    int priority = FLOAT_TO_INT_ZERO(FLOAT_ADD(FLOAT_DIV_MIX(t->recent_cpu,-4) ,INT_TO_FLOAT(PRI_MAX - (t->nice* 2))));
+    priority = priority_limit_check (priority); // Verifica se a prioridade está dentro do limite.
+    t->priority = priority_limit_check(priority); // Atribui o valor de priority para o atributo priority.
 
-    if(t != idle_thread){ // Verifica se a thread atual é diferente da idle_thread.
-        priority_yield(); 
-    }
+    priority_yield(); 
    
 }
 
@@ -423,7 +414,7 @@ int
 thread_get_load_avg (void)
 {
   
-    int load_avg_value = FLOAT_TO_INT__ZERO(FLOAT_MULT_MIX(load_avg, 100)); // (NOVO) Pega o valor de load average atual. 
+    int load_avg_value = FLOAT_TO_INT_ZERO(FLOAT_MULT_MIX(load_avg, 100)); // (NOVO) Pega o valor de load average atual. 
    
     return load_avg_value; // (NOVO) retorna 100 vezes o valor de load average atual
 
