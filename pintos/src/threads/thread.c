@@ -106,7 +106,7 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
-  initial_thread->nice = 0; // (NOVO) Inicializa o atributo nice da thread.
+  initial_thread->nice = 0;       // (NOVO) Inicializa o atributo nice da thread.
   initial_thread->recent_cpu = 0; // (NOVO) Inicializa o atributo recent_cpu da thread.
 }
 
@@ -119,7 +119,9 @@ thread_start (void)
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
   thread_create ("idle", PRI_MIN, idle, &idle_started);
+  
   load_avg = 0; // (NOVO) Inicializa a variável load_avg.
+ 
   /* Start preemptive thread scheduling. */
   intr_enable ();
 
@@ -147,7 +149,7 @@ thread_tick (void)
   if (thread_mlfqs) // (NOVO) Verifica se o escalonamento é do tipo MLFQS.
     {
       if (t != idle_thread) // (NOVO) Verifica se a thread atual é diferente da
-            t->recent_cpu++;
+            t->recent_cpu = FLOAT_ADD_MIX(t->recent_cpu, 1); // (NOVO) Incrementa o valor de recent_cpu da thread atual.
        
       if (timer_ticks () % TIME_FREQ == 0) // (NOVO) Ocorre quando se passa um segundo.
         {
@@ -157,13 +159,15 @@ thread_tick (void)
 
       if (timer_ticks () % 4 == 0) // (NOVO) Verifica se o valor de timer_ticks é múltiplo de 4.
         {
-          update_priority_all ();
+          update_priority_all (); 
+          intr_yield_on_return ();
         }
     }
-
+else{
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
+}
 }
 
 /* Prints thread statistics. */
@@ -226,8 +230,8 @@ thread_create (const char *name, int priority, thread_func *function, void *aux)
 
   /* Add to run queue. */
   thread_unblock (t);
-  thread_yield (); // (NOVO) Chama a função thread_yield para verificar se a
-                   // thread criada tem prioridade maior que a thread atual.
+  priority_yield (); // (NOVO) Chama a função priority_yield.
+  
 
   return tid;
 }
@@ -238,10 +242,10 @@ thread_create (const char *name, int priority, thread_func *function, void *aux)
    This function must be called with interrupts turned off.  It
    is usually a better idea to use one of the synchronization
    primitives in synch.h. */
+
 void
 thread_block (void)
 {
-  struct thread *cur = thread_current ();
   ASSERT (!intr_context ());
   ASSERT (intr_get_level () == INTR_OFF);
 
@@ -259,18 +263,20 @@ thread_block (void)
    update other data. */
 
 void
-thread_unblock (struct thread *t) // (NOVO) Função que desbloqueia a thread.
+thread_unblock (struct thread *t) 
 {
-  enum intr_level old_level;
+    enum intr_level old_level;
 
-  ASSERT (is_thread (t));
+    ASSERT (is_thread (t));
 
-  old_level = intr_disable ();
-  ASSERT (t->status == THREAD_BLOCKED);
-  // Insere a thread na lista de prontos.
-  list_insert_ordered (&ready_list, &t->elem, unblock_ordenator, NULL);
-  t->status = THREAD_READY; // Muda o status da thread para READY.
-  intr_set_level (old_level);
+    old_level = intr_disable ();
+    ASSERT (t->status == THREAD_BLOCKED);
+
+    // Insere a thread na lista de prontos de forma ordenada.
+    list_insert_ordered (&ready_list, &t->elem, unblock_ordenator, NULL);
+  
+    t->status = THREAD_READY; // Muda o status da thread para READY.
+    intr_set_level (old_level);
 }
 
 /* Returns the name of the running thread. */
@@ -332,17 +338,17 @@ thread_exit (void)
 void
 thread_yield (void)
 {
-  struct thread *cur = thread_current ();
-  enum intr_level old_level;
+    struct thread *cur = thread_current ();
+    enum intr_level old_level;
 
-  ASSERT (!intr_context ());
+    ASSERT (!intr_context ());
 
-  old_level = intr_disable ();
-  if (cur != idle_thread)
-   list_insert_ordered (&ready_list, &cur->elem, unblock_ordenator, NULL);
-  cur->status = THREAD_READY;
-  schedule ();
-  intr_set_level (old_level);
+    old_level = intr_disable ();
+    if (cur != idle_thread)
+        list_insert_ordered (&ready_list, &cur->elem, unblock_ordenator, NULL); // Insere a thread na lista de prontos.
+    cur->status = THREAD_READY; // Muda o status da thread para READY.
+    schedule ();
+    intr_set_level (old_level);
 }
 
 /* Invoke function 'func' on all threads, passing along 'aux'.
@@ -368,9 +374,8 @@ thread_set_priority (int new_priority)
   if (!thread_mlfqs)
     {
       struct thread *t = thread_current (); // (NOVO) Pega a thread atual.
-      struct thread *e = list_begin (&ready_list); // (NOVO) Pega a primeira thread da lista de prontos.
-      t->priority = new_priority; //(NOVO) Atribui o valor para o atributo priority.
-      thread_yield (); // (NOVO) Chama a função thread_yield para verificar se a thread atual tem prioridade maior que a thread criada.
+      t->priority = new_priority; // Atribui o valor para o atributo priority.
+      thread_yield (); // Chama a função thread_yield.
     }
 }
 
@@ -378,46 +383,60 @@ thread_set_priority (int new_priority)
 int
 thread_get_priority (void)
 {
-  return thread_current ()->priority;
+  return thread_current ()->priority; // (NOVO) Retorna o valor de priority da thread atual.
 }
 
 /* Sets the current thread's nice value to NICE. */
 void
 thread_set_nice (int nice UNUSED)
 {
-  struct thread *t = thread_current (); // (NOVO) Pega a thread atual.
   
-  t->nice = nice; // (NOVO) Atribui o valor de nice para o atributo nice.
-  // (NOVO) Calcula a prioridade da thread.
+    struct thread *t = thread_current (); // (NOVO) Pega a thread atual.
+    
+    t->nice = nice; //  Atribui o valor de nice para o atributo nice.
   
-  int priority = FLOAT_TO_INT_ZERO(FLOAT_ADD(FLOAT_DIV_MIX(t->recent_cpu,-4) ,INT_TO_FLOAT(PRI_MAX - (t->nice* 2))));
-  
-  priority = priority_limit_check (priority); // (NOVO) Verifica se a prioridade está dentro do limite.
-  
-  thread_set_priority (priority); // (NOVO) Chama a função para definir a prioridade da thread.
+    if (t != idle_thread){
+        int priority = FLOAT_TO_INT_ZERO(FLOAT_ADD(FLOAT_DIV_MIX(t->recent_cpu,-4) ,INT_TO_FLOAT(PRI_MAX - (t->nice* 2))));
+        priority = priority_limit_check (priority); // Verifica se a prioridade está dentro do limite.
+        t->priority = priority_limit_check(priority); // Atribui o valor de priority para o atributo priority.
+    }
+
+    if(t != idle_thread){ // Verifica se a thread atual é diferente da idle_thread.
+        priority_yield(); 
+    }
+   
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void)
 {
-  struct thread *t = thread_current (); // verificar qual é a thread atual
-  return t->nice; // Retorna o valor de nice da thread atual
+  
+    int nice = thread_current ()->nice; 
+    
+  
+    return nice; // (NOVO) Retorna o valor de nice da thread atual
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void)
 {
-  return load_avg * 100; // retorna 100 vezes o valor de load average atual
-}
+  
+    int load_avg_value = FLOAT_TO_INT__ZERO(FLOAT_MULT_MIX(load_avg, 100)); // (NOVO) Pega o valor de load average atual. 
+   
+    return load_avg_value; // (NOVO) retorna 100 vezes o valor de load average atual
 
+    
+}
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void)
 {
-  struct thread *t = thread_current ();
-  return t->recent_cpu* 100; // retorna 100 vezes o valor de recent_cpu da thread atual
+  
+    int recent = FLOAT_TO_INT_ZERO(FLOAT_MULT_MIX(thread_current ()->recent_cpu, 100)); // (NOVO) Pega o valor de recent_cpu da thread atual.
+    
+    return recent; // (NOVO) retorna 100 vezes o valor de recent_cpu da thread atual
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -505,10 +524,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *)t + PGSIZE;
-  t->priority = priority;
+  t->priority = priority; 
   t->magic = THREAD_MAGIC;
-  t->nice = 0;       // (NOVO) Inicializa o atributo nice da thread.
-  t->recent_cpu = 0; // (NOVO) Inicializa o atributo recent_cpu da thread.
+  t->recent_cpu = 0; // (NOVO) Inicializa o atributo nice da thread.
+  t->nice = 0;       // (NOVO) Inicializa o atributo recent_cpu da thread.
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
@@ -633,8 +652,6 @@ block_ordenator (struct list_elem *a, struct list_elem *b, void *aux)
   struct thread *thread_a = list_entry (a, struct thread, elem);
   struct thread *thread_b = list_entry (b, struct thread, elem);
 
-  // Retorna verdadeiro se a prioridade da thread a for menor que a prioridade
-  // da thread b.
   return thread_a->wakeup_tick < thread_b->wakeup_tick;
 }
 
@@ -643,68 +660,69 @@ bool
 unblock_ordenator (struct list_elem *a, struct list_elem *b, void *aux)
 {
   // Pega a thread a partir do elemento da lista.
-  struct thread *thread_a = list_entry (a, struct thread, elem);
-  struct thread *thread_b = list_entry (b, struct thread, elem);
+  struct thread *thread_a = list_entry (a, struct thread, elem); // Pega a thread a partir do elemento da lista.
+  struct thread *thread_b = list_entry (b, struct thread, elem); // Pega a thread a partir do elemento da lista.
 
-  // Retorna verdadeiro se a prioridade da thread a for menor que a prioridade
-  // da thread b.
-  return thread_a->priority > thread_b->priority;
+  return thread_a->priority > thread_b->priority; // Retorna um booleano de acordo com a comparação das prioridades.
 }
 
+// (NOVO) Função que faz a thread dormir por um determinado tempo.
 void
-thread_sleep (int64_t ticks) // (NOVO) Função que faz a thread dormir por um
-                             // determinado tempo.
+thread_sleep (int64_t ticks) 
 {
 
-  if (ticks <= 0)
-    return; // Verifica se o valor de ticks é menor ou igual a zero.
+if (ticks <= 0) return; // Verifica se o valor de ticks é menor ou igual a zero.
 
-  struct thread *cur = thread_current (); // Pega a thread atual.
-  enum intr_level old_level; // Variável para armazenar o nível de interrupção.
+struct thread *cur = thread_current (); // Pega a thread atual.
 
-  ASSERT (
-      !intr_context ()); // Verifica se não está em contexto de interrupção.
+enum intr_level old_level;     // Variável para armazenar o nível de interrupção.
 
-  old_level = intr_disable (); // Desabilita as interrupções.
-  if (cur != idle_thread)
-    { // Verifica se a thread atual é diferente da idle_thread.
-      cur->wakeup_tick = ticks; // Atribui o valor de ticks para o atributo wakeup_tick.
-      list_insert_ordered (&blocked_list, &cur->elem, block_ordenator, NULL); // Insere a thread na lista de bloqueados.
-      thread_block (); // Bloqueia a thread e chama a proxima em READY.
-      intr_set_level (old_level); // Restaura o nível de interrupção.
+ASSERT (!intr_context ()); // Verifica se não está em contexto de interrupção.
+
+old_level = intr_disable (); // Desabilita as interrupções.
+
+if (cur != idle_thread) // Verifica se a thread atual é diferente da idle_thread.
+    { 
+        cur->wakeup_tick = ticks; // Atribui o valor de ticks para o atributo wakeup_tick.
+        
+        list_insert_ordered (&blocked_list, &cur->elem, block_ordenator, NULL); // Insere a thread na lista de bloqueados.
+        
+        thread_block (); // Bloqueia a thread e chama a proxima em READY.
+        
+        intr_set_level (old_level); // Restaura o nível de interrupção.
     }
 }
 
+// (NOVO) Função que acorda as threads que estão dormindo.
 void
-thread_wakeup () // (NOVO) Função que acorda as threads que estão dormindo.
+thread_wakeup () 
 {
-  struct list_elem *cur; // Cria um ponteiro de elemento de lista.
-  struct thread *t;      // Cria um ponteiro de thread.
+    struct list_elem *cur; // Cria um ponteiro de elemento de lista.
+    struct thread *t;      // Cria um ponteiro de thread.
 
-  if (list_empty (&blocked_list))
-    return; // Verifica se a lista de bloqueados está vazia.
+    if (list_empty (&blocked_list)) return; // Verifica se a lista de bloqueados está vazia.
 
-  enum intr_level
-      old_level; // Cria uma variável para armazenar o nível de interrupção.
+    enum intr_level old_level; // Cria uma variável para armazenar o nível de interrupção.
 
-  // Percorre a lista de bloqueados.
-  for (cur = list_begin (&blocked_list); cur != list_end (&blocked_list);)
+    for (cur = list_begin (&blocked_list); cur != list_end (&blocked_list);) // Percorre a lista de bloqueados.
     {
-      t = list_entry (cur, struct thread, elem); // Pega a thread da lista.
-      // Verifica se o valor de wakeup_tick é maior que o valor de timer_ticks.
-      if (t->wakeup_tick > timer_ticks ())
-        break;
-      old_level = intr_disable ();   // Desabilita as interrupções.
-      cur = list_next (cur);         // Pega o próximo elemento da lista.
-      list_remove (list_prev (cur)); // Remove o elemento da lista.
-      thread_unblock (t);            // Desbloqueia a thread.
-      intr_set_level (old_level);    // Restaura o nível de interrupção.
+        t = list_entry (cur, struct thread, elem); // Pega a thread da lista.
+      
+        if (t->wakeup_tick > timer_ticks ()) // Verifica se o valor de wakeup_tick é maior que o valor de timer_ticks.
+            break;
+        
+        old_level = intr_disable ();   // Desabilita as interrupções.
+        cur = list_next (cur);         // Pega o próximo elemento da lista.
+        
+        list_remove (list_prev (cur)); // Remove o elemento da lista.
+        thread_unblock (t);            // Desbloqueia a thread.
+        intr_set_level (old_level);    // Restaura o nível de interrupção.
     }
 }
 
+// (NOVO) Função que verifica se a prioridade está dentro do limite.
 int
 priority_limit_check (int priority)
-// (NOVO) Função que verifica se a prioridade está dentro do limite.
 {
   if (priority > PRI_MAX)
     {
@@ -717,44 +735,63 @@ priority_limit_check (int priority)
   return priority;
 }
 
+// (NOVO) Função para atualizar a prioridade de todas as threads.
+// baseada na fórmula: priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
 void
 update_priority_all (void)
-{
-  if(thread_current() == idle_thread)
-    return;
-
-  struct list_elem *l; // (NOVO) Cria um ponteiro de elemento de lista.
-
-  for (l = list_begin (&all_list); l != list_end (&all_list); l = list_next (l))
+{ 
+    struct list_elem *l; 
+    for (l = list_begin (&all_list); l != list_end (&all_list); l = list_next (l)) // Percorre a lista de todas as threads.
     {
-      struct thread *cur = list_entry (l, struct thread, allelem); // (NOVO) Pega a thread da lista.
-      int priority = FLOAT_TO_INT_ZERO(FLOAT_ADD(FLOAT_DIV_MIX(cur->recent_cpu,-4) ,INT_TO_FLOAT(PRI_MAX - (cur->nice* 2)))); // (NOVO) Calcula a prioridade da thread.
-      cur->priority = priority_limit_check (priority); // (NOVO) Verifica se a prioridade está dentro do limite.
+        struct thread *cur = list_entry (l, struct thread, allelem); // Pega a thread da lista.
+        if(cur != idle_thread){
+            
+            int priority = FLOAT_TO_INT_ZERO(FLOAT_ADD(FLOAT_DIV_MIX(cur->recent_cpu,-4) ,INT_TO_FLOAT(PRI_MAX - (cur->nice* 2))));
+            
+            cur->priority = priority_limit_check (priority); // Verifica se a prioridade está dentro do limite.
+        }    
     }
 }
 
+// (NOVO) Função para atualizar o tempo de cpu recente de todas as threads.
+// baseada na fórmula: recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice
 void
 update_recent_all (void)
 {
-  struct list_elem *l; // (NOVO) Cria um ponteiro de elemento de lista.
-
-  for (l = list_begin (&all_list); l != list_end (&all_list); l = list_next (l)) // (NOVO) Percorre a lista de todas as threads.
-    {
-        struct thread *cur = list_entry (l, struct thread, allelem); // (NOVO) Pega a thread da lista.
-        cur->recent_cpu = cur->recent_cpu = FLOAT_ADD_MIX(FLOAT_MULT(FLOAT_DIV(FLOAT_MULT_MIX(load_avg, 2), FLOAT_ADD_MIX(FLOAT_MULT_MIX(load_avg, 2), 1)),  cur->recent_cpu),cur->nice);
+  struct list_elem *l; // Cria um ponteiro de elemento de lista.
+  for (l = list_begin (&all_list); l != list_end (&all_list); l = list_next (l)) // Percorre a lista de todas as threads.
+  {
+    struct thread *cur = list_entry (l, struct thread, allelem); // Pega a thread da lista.
+    cur->recent_cpu = (FLOAT_ADD_MIX(FLOAT_MULT(FLOAT_DIV(FLOAT_MULT_MIX(load_avg, 2), 
+    FLOAT_ADD_MIX(FLOAT_MULT_MIX(load_avg, 2), 1)),  cur->recent_cpu),cur->nice));
     }
 }
 
+// (NOVO) Função para atualizar a média de carga do sistema.
+// baseada na fórmula: load_avg = (59/60)*load_avg + (1/60)*ready_threads
 void
 update_load_avg (void)
 {
-  int ready_threads = list_size (&ready_list); // (NOVO) Pega o tamanho da lista de prontos.
-
-  if (thread_current () != idle_thread) // (NOVO) Verifica se a thread atual é diferente da idle_thread.
-    ready_threads++; // (NOVO) Incrementa o valor de ready_threads.
-  
+  int ready_threads = list_size (&ready_list);  // recebe a quantidade de threads no estado pronto
+  if (thread_current () != idle_thread)        // Verifica se a thread atual é diferente da idle_thread.
+    ready_threads++;                           
+    
+    //atualizacao do valor de load_avg
     load_avg = (FLOAT_ADD(FLOAT_MULT(FLOAT_DIV_MIX(INT_TO_FLOAT(59), 60), load_avg), FLOAT_MULT_MIX(FLOAT_DIV_MIX(INT_TO_FLOAT(1), 60), ready_threads)));
-  
+    
+}
+
+/*(NOVO) Função para realizar a preempção com base na prioridade*/
+
+void priority_yield(void){ 
+    if(list_empty(&ready_list))
+        return;
+
+    struct thread *t = list_entry (
+    list_front (&ready_list), struct thread, elem);
+ 
+    if(thread_current()-> priority < t->priority)
+        thread_yield();
 }
 
 /* Offset of `stack' member within `struct thread'.

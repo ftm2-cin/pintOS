@@ -2,6 +2,8 @@
     "C_Cpp.formatting": "clangFormat",
     "files.associations": {
         "thread.h": "c",
-        "string.h": "c"
+        "string.h": "c",
+        "thread": "c",
+        "switch.h": "c"
     },
 }

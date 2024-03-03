@@ -145,8 +145,11 @@ void thread_sleep (int64_t ticks);                                            /*
 void thread_wakeup (void);                                                    /* (NOVO) */
 bool block_ordenator (struct list_elem *a, struct list_elem *b, void *aux);   /* (NOVO) */
 bool unblock_ordenator (struct list_elem *a, struct list_elem *b, void *aux); /* (NOVO) */
-int priority_limit_check(int priority);                               /* (NOVO) */
-void update_priority_all(void);                                               /* (NOVO) */
-void update_recent_all(void);                                                 /* (NOVO) */
-void update_load_avg(void);                                                   /* (NOVO) */
+int priority_limit_check(int priority);                                       /* (NOVO) */
+void thread_set_priority_aux(struct thread *t, int new_priority);             /* (NOVO) */
+void priority_yield(void);                                                    /* (NOVO) */
+void update_load_avg (void);                                                  /* (NOVO) */
+void update_recent_all (void);                                                /* (NOVO) */
+void update_priority_all (void);                                              /* (NOVO) */
+
 #endif /* threads/thread.h */

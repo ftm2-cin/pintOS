@@ -35,5 +35,5 @@ void switch_thunk (void);
 /* Offsets used by switch.S. */
 #define SWITCH_CUR      20
 #define SWITCH_NEXT     24
-
+#define FLOAT_TO_INT__ZERO(A) ((A) / (17000))
 #endif /* threads/switch.h */
