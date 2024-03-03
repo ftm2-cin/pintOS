@@ -1,7 +1,5 @@
 # Pintos Project 1: Threads - Alarm Clock and Advanced Scheduler
 
-!Pintos Logo
-
 ## Overview
 
 This repository contains the implementation of **Project 1** for the **Software Infrastructure (IF677)** course at **CIn-UFPE**. The project focuses on enhancing the Pintos operating system by implementing an **alarm clock** and an **advanced scheduler** for thread management.
